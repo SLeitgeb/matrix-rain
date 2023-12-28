@@ -13,11 +13,11 @@ const MAX_AGE = 35
 const SHADES = 20
 
 type Cell struct {
-	character string
-	age       int
-	last_tick time.Time
-	delay     time.Duration
-	live      bool
+	character   string
+	age         int
+	next_change time.Time
+	delay       time.Duration
+	live        bool
 }
 
 func (c Cell) Draw(y int, x int, screen ncurses.Window) {
@@ -76,11 +76,12 @@ func NewCanvas(screen ncurses.Window) Canvas {
 }
 
 func (c Canvas) NewCell(t time.Time) Cell {
+	delay := time.Duration((CELL_DELAY_MS + rand.Intn(DELAY_VARIANCE_MS*2) - DELAY_VARIANCE_MS) * int(time.Millisecond))
 	new_cell := Cell{
 		c.character_pool.Random(),
 		0,
-		t,
-		time.Duration((CELL_DELAY_MS + rand.Intn(DELAY_VARIANCE_MS*2) - DELAY_VARIANCE_MS) * int(time.Millisecond)),
+		t.Add(delay),
+		delay,
 		true,
 	}
 	col := rand.Intn(c.width)
@@ -89,13 +90,13 @@ func (c Canvas) NewCell(t time.Time) Cell {
 }
 
 func (c Canvas) Tick(t time.Time) {
-	if rand.Intn(15) == 0 {
+	if rand.Intn(10) == 0 {
 		c.NewCell(t)
 	}
 	for y, col := range c.grid {
 		for x, cell := range col {
-			if cell.live && t.After(cell.last_tick.Add(cell.delay)) {
-				c.grid[y][x].last_tick = t
+			if cell.live && t.After(cell.next_change) {
+				c.grid[y][x].next_change = cell.next_change.Add(cell.delay)
 				if cell.age == 0 && y < c.height-1 {
 					c.grid[y+1][x] = c.grid[y][x]
 					c.grid[y+1][x].character = c.character_pool.Random()
@@ -105,9 +106,9 @@ func (c Canvas) Tick(t time.Time) {
 				if c.grid[y][x].age > MAX_AGE {
 					c.grid[y][x] = Cell{}
 				}
+				c.grid[y][x].Draw(y, x*c.character_width, c.screen)
+				c.screen.Refresh()
 			}
-			c.grid[y][x].Draw(y, x*c.character_width, c.screen)
-			c.screen.Refresh()
 		}
 	}
 }
